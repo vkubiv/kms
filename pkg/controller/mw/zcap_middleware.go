@@ -24,6 +24,7 @@ import (
 	"github.com/trustbloc/edge-core/pkg/log"
 	"github.com/trustbloc/edge-core/pkg/zcapld"
 
+	metricskms "github.com/trustbloc/kms/pkg/kms/metrics"
 	"github.com/trustbloc/kms/pkg/metrics"
 )
 
@@ -84,8 +85,8 @@ func ZCAPLDMiddleware(c *ZCAPConfig, handlerAction string) mux.MiddlewareFunc {
 		return &mwHandler{
 			next:                 h,
 			zcaps:                &capabilityResolverMetrics{wrapped: c.AuthService},
-			keys:                 c.AuthService.KMS(),
-			crpto:                c.AuthService.Crypto(),
+			keys:                 metricskms.WrapKMS(c.AuthService.KMS()),
+			crpto:                metricskms.WrapCrypto(c.AuthService.Crypto()),
 			jsonLDLoader:         &documentLoaderMetrics{wrapped: c.JSONLDLoader},
 			logger:               c.Logger,
 			routeFunc:            (&muxNamer{}).GetName,

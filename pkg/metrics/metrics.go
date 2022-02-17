@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	namespace = "kms"
+	namespace = "kmsMethods"
 
 	// Crypto.
 	crypto               = "crypto"
@@ -46,6 +46,11 @@ const (
 	zcapCapabilityResolveTimeMetric = "capability_resolve_seconds"
 	zcapLoadDocumentTimeMetric      = "load_document_seconds"
 	zcapVDRResolveTimeMetric        = "vdr_resolve_seconds"
+
+	// KMS.
+	kms                        = "kms"
+	kmsMethodTimeMetrics       = "method_seconds"
+	kmsCryptoMethodTimeMetrics = "crypto_method_seconds"
 )
 
 var logger = log.New("metrics")
@@ -80,6 +85,9 @@ type Metrics struct {
 	zcapldCapabilityResolveTime prometheus.Histogram
 	zcapldLoadDocumentTime      prometheus.Histogram
 	zcapldVDRResolve            prometheus.Histogram
+
+	kmsMethods    map[string]prometheus.Histogram
+	cryptoMethods map[string]prometheus.Histogram
 }
 
 // Get returns an KMS metrics provider.
@@ -91,8 +99,14 @@ func Get() *Metrics {
 	return instance
 }
 
+//nolint:funlen
 func newMetrics() *Metrics {
 	dbTypes := []string{"CouchDB", "MongoDB", "EDV", "Cache"}
+	kmsMethods := []string{"Create", "Get", "ExportPubKeyBytes", "CreateAndExportPubKeyBytes", "PubKeyBytesToHandle"}
+	cryptoMethods := []string{
+		"ComputeMAC", "Decrypt", "DeriveProof", "Encrypt", "Sign", "SignMulti", "UnwrapKey",
+		"Verify", "VerifyMAC", "VerifyMulti", "VerifyProof", "WrapKey",
+	}
 
 	m := &Metrics{
 		cryptoSignTime:              newCryptoSignTime(),
@@ -113,6 +127,8 @@ func newMetrics() *Metrics {
 		zcapldCapabilityResolveTime: newZCAPCapabilityResolveTime(),
 		zcapldLoadDocumentTime:      newZCAPLoadDocumentTime(),
 		zcapldVDRResolve:            newZCAPVDRResolveTime(),
+		kmsMethods:                  newKMSMethodsTime(kmsMethods),
+		cryptoMethods:               newCryptoMethodsTime(cryptoMethods),
 	}
 
 	prometheus.MustRegister(
@@ -146,6 +162,14 @@ func newMetrics() *Metrics {
 	}
 
 	for _, c := range m.dbQueryTimes {
+		prometheus.MustRegister(c)
+	}
+
+	for _, c := range m.kmsMethods {
+		prometheus.MustRegister(c)
+	}
+
+	for _, c := range m.cryptoMethods {
 		prometheus.MustRegister(c)
 	}
 
@@ -276,6 +300,20 @@ func (m *Metrics) ZCAPLDVDRResolveTime(value time.Duration) {
 	m.zcapldVDRResolve.Observe(value.Seconds())
 
 	logger.Debugf("ZCAPLD VDR resolve time: %s", value)
+}
+
+// KMSMethodTime records the time it takes to execute a kms method.
+func (m *Metrics) KMSMethodTime(method string, value time.Duration) {
+	m.kmsMethods[method].Observe(value.Seconds())
+
+	logger.Debugf("KMS %s time: %s", method, value)
+}
+
+// CryptoMethodTime records the time it takes to execute a crypto method.
+func (m *Metrics) CryptoMethodTime(method string, value time.Duration) {
+	m.cryptoMethods[method].Observe(value.Seconds())
+
+	logger.Debugf("Crypto %s time: %s", method, value)
 }
 
 func newHistogram(subsystem, name, help string, labels prometheus.Labels) prometheus.Histogram {
@@ -472,4 +510,32 @@ func newZCAPVDRResolveTime() prometheus.Histogram {
 		"The time (in seconds) that it takes to resolve vdr.",
 		nil,
 	)
+}
+
+func newKMSMethodsTime(methods []string) map[string]prometheus.Histogram {
+	counters := make(map[string]prometheus.Histogram)
+
+	for _, method := range methods {
+		counters[method] = newHistogram(
+			kms, kmsMethodTimeMetrics,
+			"The time (in seconds) it takes the execute kms method.",
+			prometheus.Labels{"type": method},
+		)
+	}
+
+	return counters
+}
+
+func newCryptoMethodsTime(methods []string) map[string]prometheus.Histogram {
+	counters := make(map[string]prometheus.Histogram)
+
+	for _, method := range methods {
+		counters[method] = newHistogram(
+			kms, kmsCryptoMethodTimeMetrics,
+			"The time (in seconds) it takes the execute kms method.",
+			prometheus.Labels{"type": method},
+		)
+	}
+
+	return counters
 }

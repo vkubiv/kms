@@ -39,5 +39,6 @@ func TestMetrics(t *testing.T) {
 		require.NotPanics(t, func() { m.ZCAPLDCapabilityResolveTime(time.Second) })
 		require.NotPanics(t, func() { m.ZCAPLDLoadDocumentTime(time.Second) })
 		require.NotPanics(t, func() { m.ZCAPLDVDRResolveTime(time.Second) })
+		require.NotPanics(t, func() { m.KMSMethodTime("Create", time.Second) })
 	})
 }
